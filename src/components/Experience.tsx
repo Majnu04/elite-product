@@ -484,7 +484,18 @@ export default function Experience() {
         </div>
         <div className="footer-bottom">
           <span>&copy; 2026 Elite Digital Solutions. All rights reserved.</span>
-          <span>Crafted as a demonstration of cinematic digital experience.</span>
+          <span>
+            Designed &amp; Developed by{' '}
+            <a
+              href="https://elitedigitalsolutions.co.in/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hoverable"
+              style={{ color: '#c9a063', textDecoration: 'none' }}
+            >
+              Elite Digital Solutions
+            </a>
+          </span>
         </div>
       </footer>
     </>
