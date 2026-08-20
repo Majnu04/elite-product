@@ -11,6 +11,7 @@ import {
   smoothstep,
   windowOpacity,
   interpolateCamera,
+  interpolateBottle,
 } from '@/lib/utils';
 import { cameraKeyframes } from '@/lib/constants';
 import EliteBottle from './EliteBottle';
@@ -45,7 +46,6 @@ function makeMistTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-/* Seeded random for deterministic particle generation */
 function seededRandom(seed: number): () => number {
   let s = seed;
   return () => {
@@ -100,6 +100,7 @@ function createMistParticles(): ParticleData {
 export default function Scene() {
   const { camera } = useThree();
   const bottleRef = useRef<THREE.Group>(null);
+  const bottleGroupRef = useRef<THREE.Group>(null);
   const particleRef = useRef<THREE.Points>(null);
   const particleMatRef = useRef<THREE.PointsMaterial>(null);
   const mistRef = useRef<THREE.Points>(null);
@@ -112,6 +113,7 @@ export default function Scene() {
   const _colA = useMemo(() => new THREE.Color(), []);
   const _colB = useMemo(() => new THREE.Color(), []);
   const _noteColor = useMemo(() => new THREE.Color(), []);
+  const _bottleOffset = useMemo(() => ({ x: 0, y: 0 }), []);
 
   const [ambientData] = useState(createAmbientParticles);
   const [mistData] = useState(createMistParticles);
@@ -143,8 +145,29 @@ export default function Scene() {
     }
     const p = store.progress;
 
+    // Bottle drift — interpolate bottle position
+    interpolateBottle(p, _bottleOffset);
+    if (!store.isReducedMotion) {
+      const driftDamp = 1 - Math.exp(-delta / 0.18);
+      store.smoothBottleX += (_bottleOffset.x - store.smoothBottleX) * driftDamp;
+      store.smoothBottleY += (_bottleOffset.y - store.smoothBottleY) * driftDamp;
+    } else {
+      store.smoothBottleX = _bottleOffset.x;
+      store.smoothBottleY = _bottleOffset.y;
+    }
+
+    // Apply bottle position to group
+    if (bottleGroupRef.current) {
+      bottleGroupRef.current.position.x = store.smoothBottleX;
+      bottleGroupRef.current.position.y = -0.25 + store.smoothBottleY;
+    }
+
     // Camera — Catmull-Rom path + exponential damping
     const targetFov = interpolateCamera(p, cameraKeyframes, tmpPos, tmpLook);
+
+    // Add partial bottle tracking to camera lookAt
+    tmpLook.x += store.smoothBottleX * 0.4;
+    tmpLook.y += store.smoothBottleY * 0.3;
 
     if (!store.isReducedMotion) {
       const camDamp = 1 - Math.exp(-delta / 0.12);
@@ -170,8 +193,8 @@ export default function Scene() {
     }
 
     if (!store.isMobile && !store.isReducedMotion) {
-      cam.position.x += store.mouseX * 0.12;
-      cam.position.y += -store.mouseY * 0.06;
+      cam.position.x += store.mouseX * 0.10;
+      cam.position.y += -store.mouseY * 0.05;
     }
 
     cam.updateProjectionMatrix();
@@ -217,11 +240,13 @@ export default function Scene() {
       posAttr.needsUpdate = true;
     }
 
-    // Fragrance Mist
+    // Fragrance Mist — follows bottle drift
     if (mistRef.current && mistMatRef.current) {
       const capLift = smoothstep(0.28, 0.38, p);
       const mistFade = windowOpacity(p, 0.39, 0.52, 0.4);
       mistMatRef.current.opacity = capLift * mistFade * 0.6;
+      mistRef.current.position.x = store.smoothBottleX;
+      mistRef.current.position.z = 0;
 
       const posAttr = mistData.geo.attributes.position as THREE.BufferAttribute;
       const arr = posAttr.array as Float32Array;
@@ -240,13 +265,14 @@ export default function Scene() {
       posAttr.needsUpdate = true;
     }
 
-    // Ambient glow
+    // Ambient glow — follows bottle
     if (ambientGlowMatRef.current && ambientGlowRef.current) {
       const flipMix = windowOpacity(p, 0.735, 0.86, 0.45);
       const dissolve = dissolveAmount(p);
       ambientGlowMatRef.current.opacity =
         lerp(0.0, 0.2, smoothstep(0.0, 0.2, p)) * (1 - dissolve) + flipMix * 0.18;
-      ambientGlowRef.current.position.x = 0.6 - flipMix * 1.2;
+      ambientGlowRef.current.position.x = 0.6 + store.smoothBottleX * 0.5 - flipMix * 1.2;
+      ambientGlowRef.current.position.y = 0.9 + store.smoothBottleY * 0.3;
     }
   });
 
@@ -267,7 +293,10 @@ export default function Scene() {
       </Environment>
 
       <StudioLighting />
-      <EliteBottle ref={bottleRef} />
+
+      <group ref={bottleGroupRef} position={[0, -0.25, 0]}>
+        <EliteBottle ref={bottleRef} />
+      </group>
 
       <points ref={particleRef} geometry={ambientData.geo}>
         <pointsMaterial

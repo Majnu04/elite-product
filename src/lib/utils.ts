@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { CameraKeyframe } from './constants';
+import type { CameraKeyframe, BottleKeyframe, MaterialPreset } from './constants';
+import { bottleKeyframes, materialPresets } from './constants';
 
 const _v = new THREE.Vector3();
 
@@ -70,6 +71,44 @@ export function interpolateCamera(
   );
 
   return catmullRom(keyframes[im].fov, a.fov, b.fov, keyframes[ipp].fov, t);
+}
+
+export function interpolateBottle(p: number, out: { x: number; y: number }): void {
+  const kf = bottleKeyframes;
+  let i = 0;
+  while (i < kf.length - 2 && p > kf[i + 1].p) i++;
+
+  const a = kf[i];
+  const b = kf[Math.min(i + 1, kf.length - 1)];
+  const range = b.p - a.p;
+  const t = range > 0.0001 ? clamp((p - a.p) / range, 0, 1) : 0;
+  const et = smoothstep(0, 1, t);
+
+  out.x = lerp(a.x, b.x, et);
+  out.y = lerp(a.y, b.y, et);
+}
+
+export function interpolateMaterials(
+  p: number,
+  presets: MaterialPreset[],
+  out: { a: number; b: number; t: number },
+): void {
+  if (p < 0.82) { out.a = 0; out.b = 0; out.t = 0; return; }
+  const blendStart = 0.82;
+  const blendEnd = 0.92;
+  const raw = clamp((p - blendStart) / (blendEnd - blendStart), 0, 1);
+  const scaled = raw * (presets.length - 1);
+  const a = Math.min(presets.length - 1, Math.floor(scaled));
+  const b = Math.min(presets.length - 1, a + 1);
+  out.a = a;
+  out.b = b;
+  out.t = scaled - Math.floor(scaled);
+}
+
+export function lerpColor(a: THREE.Color, b: THREE.Color, t: number, out: THREE.Color): void {
+  out.r = lerp(a.r, b.r, t);
+  out.g = lerp(a.g, b.g, t);
+  out.b = lerp(a.b, b.b, t);
 }
 
 export function isMobileDevice(): boolean {

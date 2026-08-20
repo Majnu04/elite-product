@@ -8,7 +8,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { store } from '@/lib/store';
 import { windowOpacity, prefersReducedMotion, isMobileDevice } from '@/lib/utils';
-import { sceneTextBlocks } from '@/lib/constants';
+import { sceneTextBlocks, materialPresets } from '@/lib/constants';
 import Scene from './Scene';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -20,17 +20,16 @@ export default function Experience() {
   const navRef = useRef<HTMLElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const scrollIndicatorRef = useRef<HTMLDivElement>(null);
+  const materialLabelRef = useRef<HTMLDivElement>(null);
   const cxRef = useRef(0);
   const cyRef = useRef(0);
   const txRef = useRef(0);
   const tyRef = useRef(0);
 
-  /* ==================== INITIALIZATION ==================== */
   useEffect(() => {
     store.isMobile = isMobileDevice();
     store.isReducedMotion = prefersReducedMotion();
 
-    // Loader bar animation
     if (loaderBarRef.current) {
       gsap.to(loaderBarRef.current, {
         width: '100%',
@@ -40,13 +39,11 @@ export default function Experience() {
       });
     }
 
-    // Hide loader after delay
     const hideTimer = setTimeout(() => {
       if (loaderRef.current) loaderRef.current.classList.add('hidden');
       store.isReady = true;
     }, 2200);
 
-    // ---- Lenis smooth scroll ----
     const lenis = new Lenis({
       duration: store.isReducedMotion ? 0.1 : 1.4,
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
@@ -59,7 +56,6 @@ export default function Experience() {
     });
     gsap.ticker.lagSmoothing(0);
 
-    // ---- ScrollTrigger ----
     if (!store.isReducedMotion && scrollRef.current) {
       ScrollTrigger.create({
         trigger: scrollRef.current,
@@ -71,13 +67,11 @@ export default function Experience() {
       });
     }
 
-    // ---- Resize handler ----
     const onResize = () => {
       store.isMobile = isMobileDevice();
     };
     window.addEventListener('resize', onResize);
 
-    // ---- Nav scroll effect ----
     const onScroll = () => {
       if (navRef.current) {
         navRef.current.classList.toggle('scrolled', window.scrollY > 40);
@@ -97,7 +91,6 @@ export default function Experience() {
   /* ==================== TEXT ANIMATION RAF ==================== */
   useEffect(() => {
     if (store.isReducedMotion) {
-      // Show all text in reduced mode
       sceneTextBlocks.forEach(({ id }) => {
         const el = document.getElementById(id);
         if (el) {
@@ -113,13 +106,18 @@ export default function Experience() {
     const update = () => {
       const p = store.progress;
 
-      // Update scene text blocks
-      sceneTextBlocks.forEach(({ id, start, end }) => {
+      sceneTextBlocks.forEach(({ id, start, end, side }) => {
         const el = document.getElementById(id);
         if (el) {
           const op = windowOpacity(p, start, end, 0.35);
           el.style.opacity = String(op);
-          el.style.transform = `translateY(${10 * (1 - op)}px)`;
+
+          let tx = 0;
+          let ty = 10 * (1 - op);
+          if (side === 'left') tx = -20 * (1 - op);
+          else if (side === 'right') tx = 20 * (1 - op);
+
+          el.style.transform = `translate(${tx}px, ${ty}px)`;
           el.style.filter = `blur(${5 * (1 - op)}px)`;
           el.style.pointerEvents = op > 0.5 ? 'auto' : 'none';
         }
@@ -130,6 +128,15 @@ export default function Experience() {
         scrollIndicatorRef.current.style.opacity = String(
           Math.max(0, 1 - p / 0.04),
         );
+      }
+
+      // Material label during transform phase
+      if (materialLabelRef.current) {
+        const { a, t } = store.materialBlend;
+        const active = p >= 0.82 && p <= 0.92;
+        materialLabelRef.current.style.opacity = active ? '1' : '0';
+        materialLabelRef.current.style.transform = `translateX(-50%) translateY(${active ? 0 : 10}px)`;
+        materialLabelRef.current.textContent = materialPresets[Math.round(a + t)].name;
       }
 
       raf = requestAnimationFrame(update);
@@ -162,7 +169,6 @@ export default function Experience() {
     };
     raf = requestAnimationFrame(loop);
 
-    // Hover effect
     const addHoverListeners = () => {
       document.querySelectorAll('.hoverable').forEach((el) => {
         el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
@@ -180,13 +186,11 @@ export default function Experience() {
     };
   }, []);
 
-  /* ==================== SCROLL TO ==================== */
   const scrollTo = useCallback((target: string) => {
     const el = document.querySelector(target);
     if (el) el.scrollIntoView({ behavior: store.isReducedMotion ? 'auto' : 'smooth' });
   }, []);
 
-  /* ==================== NAV TOGGLE ==================== */
   const toggleNav = useCallback(() => {
     const navLinks = document.getElementById('nav-links');
     if (navLinks) navLinks.classList.toggle('open');
@@ -219,10 +223,8 @@ export default function Experience() {
   /* ==================== RENDER ==================== */
   return (
     <>
-      {/* Cursor */}
       {!store.isMobile && <div ref={cursorRef} className="custom-cursor" />}
 
-      {/* Loader */}
       <div ref={loaderRef} className="loader-overlay">
         <h1>ELITE</h1>
         <p>EAU DE PARFUM</p>
@@ -231,7 +233,6 @@ export default function Experience() {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav ref={navRef} className="site-nav">
         <div className="nav-logo">ELITE</div>
         <ul className="nav-links" id="nav-links">
@@ -262,7 +263,6 @@ export default function Experience() {
         </button>
       </nav>
 
-      {/* Scroll container + sticky3D viewport */}
       <div
         ref={scrollRef}
         id="scroll-container"
@@ -270,7 +270,6 @@ export default function Experience() {
         style={{ height: '920vh' }}
       >
         <div className="scroll-viewport">
-          {/* Three.js Canvas */}
           <Canvas
             camera={{ position: [0, 0.3, 6], fov: 32, near: 0.1, far: 100 }}
             gl={{
@@ -292,55 +291,124 @@ export default function Experience() {
             </Suspense>
           </Canvas>
 
-          {/* Scene text overlays */}
+          {/* Scene text overlays — editorial positioning */}
           <div className="scene-text-layer">
             <div className="scene-block" id="hero-block">
               <h1>ELITE</h1>
               <p className="sub">A Scent Beyond Ordinary.</p>
             </div>
+
             <div className="scene-block" id="s-reveal">
               <span className="eyebrow">The Reveal</span>
-              <h2>Designed to be remembered.</h2>
+              <h2>Designed to be<br />remembered.</h2>
             </div>
+
+            <div className="scene-block" id="s-drift-r">
+              <span className="eyebrow">The First Impression</span>
+              <h2>Quiet<br />confidence.</h2>
+              <p className="drift-sub">Bergamot opens with a quiet<br />confidence that speaks volumes.</p>
+            </div>
+
+            <div className="scene-block" id="s-drift-l">
+              <span className="eyebrow">The Craft</span>
+              <h2>Precision in<br />every detail.</h2>
+              <p className="drift-sub">Every element has a purpose.<br />Nothing is accidental.</p>
+            </div>
+
             <div className="scene-block" id="s-cap">
               <span className="eyebrow">Precision</span>
-              <h2>Precision in every detail.</h2>
+              <h2>Precision in<br />every detail.</h2>
             </div>
+
             <div className="scene-block" id="s-mist1">
               <span className="eyebrow">Fragrance</span>
-              <h2>You can&apos;t see fragrance.</h2>
+              <h2>You can&apos;t see<br />fragrance.</h2>
             </div>
+
             <div className="scene-block" id="s-mist2">
               <h2>You can feel it.</h2>
             </div>
+
             <div className="scene-block" id="s-note-top">
               <span className="eyebrow">Top Note</span>
               <h2>Bergamot</h2>
+              <p className="note-detail">Citrus brightness that lifts<br />the opening with warmth.</p>
             </div>
+
             <div className="scene-block" id="s-note-heart">
               <span className="eyebrow">Heart Note</span>
               <h2>Iris</h2>
+              <p className="note-detail">Velvet softness at the centre.<br />Powdery, elegant, timeless.</p>
             </div>
+
             <div className="scene-block" id="s-note-base">
               <span className="eyebrow">Base Note</span>
               <h2>Oud</h2>
+              <p className="note-detail">Deep, resinous warmth.<br />The final lasting impression.</p>
             </div>
-            <div className="scene-block" id="s-exploded">
+
+            <div className="scene-block exploded-block" id="s-exploded">
               <span className="eyebrow">Craft</span>
-              <h2>Crafted with precision.</h2>
+              <h2>Crafted with<br />precision.</h2>
+              <div className="hotspot-list">
+                <div className="hotspot-item">
+                  <span className="hotspot-dot" />
+                  <div>
+                    <strong>CAP</strong>
+                    <span>Precision-milled metal.</span>
+                  </div>
+                </div>
+                <div className="hotspot-item">
+                  <span className="hotspot-dot" />
+                  <div>
+                    <strong>GLASS</strong>
+                    <span>Heavyweight crystal glass.</span>
+                  </div>
+                </div>
+                <div className="hotspot-item">
+                  <span className="hotspot-dot" />
+                  <div>
+                    <strong>LIQUID</strong>
+                    <span>Eau de Parfum, 20% concentration.</span>
+                  </div>
+                </div>
+              </div>
             </div>
+
             <div className="scene-block" id="s-flip">
               <span className="eyebrow">Impression</span>
-              <h2>An impression that lasts.</h2>
+              <h2>An impression<br />that lasts.</h2>
             </div>
+
+            <div className="scene-block material-block" id="s-material">
+              <span className="eyebrow">Three Finishes</span>
+              <h2>One vision.</h2>
+              <div className="material-swatches">
+                <div className="swatch">
+                  <div className="swatch-dot" style={{ background: 'linear-gradient(135deg, #e8e2d8, #c9a063)' }} />
+                  <span>Obsidian</span>
+                </div>
+                <div className="swatch">
+                  <div className="swatch-dot" style={{ background: 'linear-gradient(135deg, #d0d8e8, #4a6a8a)' }} />
+                  <span>Midnight</span>
+                </div>
+                <div className="swatch">
+                  <div className="swatch-dot" style={{ background: 'linear-gradient(135deg, #f0e8d8, #dab878)' }} />
+                  <span>Champagne</span>
+                </div>
+              </div>
+            </div>
+
             <div className="scene-block" id="s-liquid">
               <span className="eyebrow">Essence</span>
-              <h2>The essence of ELITE.</h2>
+              <h2>The essence<br />of ELITE.</h2>
             </div>
+
             <div className="scene-block" id="s-reconstruct">
               <span className="eyebrow">Intention</span>
-              <h2>Every detail has a purpose.</h2>
+              <h2>Every detail<br />has a purpose.</h2>
             </div>
+
             <div className="scene-block" id="final-block">
               <h1>ELITE</h1>
               <p className="sub">Eau de Parfum</p>
@@ -362,7 +430,9 @@ export default function Experience() {
             </div>
           </div>
 
-          {/* Scroll indicator */}
+          {/* Material label overlay */}
+          <div ref={materialLabelRef} className="material-phase-label" />
+
           <div ref={scrollIndicatorRef} className="scroll-indicator">
             <span>Scroll to Experience</span>
             <div className="scroll-line">
@@ -374,7 +444,6 @@ export default function Experience() {
 
       {/* ==================== EDITORIAL SECTIONS ==================== */}
 
-      {/* Product info */}
       <section className="editorial" id="product-info">
         <div className="product-grid">
           <div className="reveal">
@@ -428,7 +497,6 @@ export default function Experience() {
         </div>
       </section>
 
-      {/* Brand story */}
       <section className="editorial" id="brand-story">
         <div className="story-wrap reveal">
           <span className="eyebrow-label">The Idea Behind ELITE</span>
@@ -441,7 +509,6 @@ export default function Experience() {
         </div>
       </section>
 
-      {/* Final CTA */}
       <section className="editorial" id="final-cta">
         <div className="reveal">
           <span className="eyebrow-label">Ready When You Are</span>
@@ -460,7 +527,6 @@ export default function Experience() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer>
         <div className="footer-top">
           <div>

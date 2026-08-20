@@ -11,4 +11,7 @@ export const store = {
   smoothCamPos: new THREE.Vector3(0, 0.3, 6),
   smoothCamLook: new THREE.Vector3(0, 0.05, 0),
   smoothCamFov: 32,
+  smoothBottleX: 0,
+  smoothBottleY: 0,
+  materialBlend: { a: 0, b: 0, t: 0 },
 };

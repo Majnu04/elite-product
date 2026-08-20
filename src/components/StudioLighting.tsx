@@ -21,7 +21,9 @@ export default function StudioLighting() {
     const reveal = smoothstep(0.0, 0.18, p);
 
     if (keyRef.current) {
-      keyRef.current.intensity = lerp(1.2, 5.0, reveal);
+      const driftBoost = Math.abs(store.smoothBottleX) * 0.3;
+      keyRef.current.intensity = lerp(1.2, 5.0, reveal) + driftBoost;
+      keyRef.current.position.x = 3.0 + store.smoothBottleX * 0.3;
     }
     if (rimRef.current) {
       rimRef.current.intensity = lerp(0.4, 1.8, smoothstep(0.0, 0.25, p));
@@ -45,6 +47,7 @@ export default function StudioLighting() {
     }
     if (frontFillRef.current) {
       frontFillRef.current.intensity = lerp(0.2, 0.8, reveal);
+      frontFillRef.current.position.x = store.smoothBottleX * 0.2;
     }
   });
 

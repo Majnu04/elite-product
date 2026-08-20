@@ -32,32 +32,31 @@ export default function CinematicEffects() {
     const liquidFocus = windowOpacity(p, 0.80, 0.90, 0.3);
     const capScene = windowOpacity(p, 0.28, 0.42, 0.35);
     const reveal = smoothstep(0.0, 0.3, p);
+    const materialPhase = windowOpacity(p, 0.82, 0.92, 0.35);
 
-    // Bloom
     if (bloomRef.current) {
-      bloomRef.current.intensity = lerp(0.3, 0.8, reveal) + mistOp * 0.25 + liquidFocus * 0.3;
+      bloomRef.current.intensity = lerp(0.3, 0.8, reveal) + mistOp * 0.25 + liquidFocus * 0.3 + materialPhase * 0.2;
     }
 
-    // Vignette
     if (vignetteRef.current) {
-      vignetteRef.current.darkness = lerp(0.35, 0.65, flipMix) + liquidFocus * 0.1;
+      vignetteRef.current.darkness = lerp(0.35, 0.65, flipMix) + liquidFocus * 0.1 + materialPhase * 0.05;
     }
 
-    // Chromatic aberration
     if (chromaticRef.current) {
-      const offset = 0.0006 + flipMix * 0.002 + liquidFocus * 0.001;
+      const offset = 0.0006 + flipMix * 0.002 + liquidFocus * 0.001 + materialPhase * 0.0008;
       chromaticRef.current.offset.set(offset, offset);
     }
 
-    // Depth of Field — stronger during cap macro and liquid macro
     if (dofRef.current) {
-      const dofBokeh = capScene * 2.5 + liquidFocus * 3.5;
-      dofRef.current.bokehScale = clamp(dofBokeh, 0, 4);
+      const dofBokeh = capScene * 2.5 + liquidFocus * 3.5 + materialPhase * 1.5;
+      dofRef.current.bokehScale = clamp(dofBokeh, 0, 5);
       dofRef.current.focusDistance = capScene > 0.01
         ? 0.022
         : liquidFocus > 0.01
           ? 0.018
-          : 0.04;
+          : materialPhase > 0.01
+            ? 0.020
+            : 0.04;
     }
   });
 

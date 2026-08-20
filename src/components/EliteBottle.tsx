@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { store } from '@/lib/store';
 import { smoothstep, clamp, windowOpacity, riseOpacity, lerp } from '@/lib/utils';
+import { materialPresets } from '@/lib/constants';
 
 const rimVert = `
   varying vec3 vNormalW;
@@ -126,6 +127,10 @@ const EliteBottle = forwardRef(function EliteBottle(_props, ref) {
   const _bgBotA = useMemo(() => new THREE.Color(0x050504), []);
   const _bgBotB = useMemo(() => new THREE.Color(0x140d06), []);
 
+  const _matA = useMemo(() => new THREE.Color(), []);
+  const _matB = useMemo(() => new THREE.Color(), []);
+  const _matBlend = useMemo(() => ({ a: 0, b: 0, t: 0 }), []);
+
   useImperativeHandle(ref, () => groupRef.current!);
 
   const { bodyGeo, liquidGeo, capGeo } = useMemo(() => {
@@ -229,6 +234,66 @@ const EliteBottle = forwardRef(function EliteBottle(_props, ref) {
       liquidMatRef.current.emissiveIntensity = 0.15 + lf * 0.6;
     }
 
+    // Material transform — interpolate between presets
+    const blend = _matBlend;
+    if (p < 0.82) {
+      blend.a = 0; blend.b = 0; blend.t = 0;
+    } else {
+      const blendStart = 0.82;
+      const blendEnd = 0.92;
+      const raw = clamp((p - blendStart) / (blendEnd - blendStart), 0, 1);
+      const scaled = raw * (materialPresets.length - 1);
+      blend.a = Math.min(materialPresets.length - 1, Math.floor(scaled));
+      blend.b = Math.min(materialPresets.length - 1, blend.a + 1);
+      blend.t = scaled - Math.floor(scaled);
+    }
+    store.materialBlend = blend;
+
+    const presetA = materialPresets[blend.a];
+    const presetB = materialPresets[blend.b];
+    const bt = blend.t;
+
+    // Glass color
+    if (bodyMatRef.current) {
+      _matA.setHex(presetA.glassColor);
+      _matB.setHex(presetB.glassColor);
+      _matA.lerp(_matB, bt);
+      bodyMatRef.current.color.copy(_matA);
+
+      _matA.setHex(presetA.glassAttenuation);
+      _matB.setHex(presetB.glassAttenuation);
+      _matA.lerp(_matB, bt);
+      bodyMatRef.current.attenuationColor.copy(_matA);
+    }
+    if (neckMatRef.current) {
+      _matA.setHex(presetA.glassColor);
+      _matB.setHex(presetB.glassColor);
+      _matA.lerp(_matB, bt);
+      neckMatRef.current.color.copy(_matA);
+    }
+
+    // Liquid color
+    if (liquidMatRef.current) {
+      _matA.setHex(presetA.liquidColor);
+      _matB.setHex(presetB.liquidColor);
+      _matA.lerp(_matB, bt);
+      liquidMatRef.current.color.copy(_matA);
+
+      _matA.setHex(presetA.liquidEmissive);
+      _matB.setHex(presetB.liquidEmissive);
+      _matA.lerp(_matB, bt);
+      liquidMatRef.current.emissive.copy(_matA);
+    }
+
+    // Cap color
+    if (capMatRef.current) {
+      _matA.setHex(presetA.capColor);
+      _matB.setHex(presetB.capColor);
+      _matA.lerp(_matB, bt);
+      capMatRef.current.color.copy(_matA);
+      capMatRef.current.roughness = lerp(presetA.capRoughness, presetB.capRoughness, bt);
+    }
+
     const dissolve = dissolveAmount(p);
     if (bodyMatRef.current) bodyMatRef.current.opacity = 0.95 * (1 - dissolve * 0.85);
     if (neckMatRef.current) neckMatRef.current.opacity = 0.92 * (1 - dissolve * 0.85);
@@ -242,7 +307,15 @@ const EliteBottle = forwardRef(function EliteBottle(_props, ref) {
       const flipMix = windowOpacity(p, 0.735, 0.86, 0.45);
       rimMatRef.current.uniforms.intensity.value =
         lerp(0.15, 0.55, smoothstep(0.0, 0.2, p)) + flipMix * 0.5;
-      rimMatRef.current.uniforms.glowColor.value.setHex(flipMix > 0.05 ? 0xf0c88a : 0xf3ede2);
+
+      _matA.setHex(presetA.rimColor);
+      _matB.setHex(presetB.rimColor);
+      _matA.lerp(_matB, bt);
+      if (flipMix > 0.05) {
+        rimMatRef.current.uniforms.glowColor.value.setHex(0xf0c88a);
+      } else {
+        rimMatRef.current.uniforms.glowColor.value.copy(_matA);
+      }
     }
 
     if (bgMatRef.current) {
@@ -272,7 +345,7 @@ const EliteBottle = forwardRef(function EliteBottle(_props, ref) {
         />
       </mesh>
 
-      <group ref={groupRef} position={[0, -0.25, 0]}>
+      <group ref={groupRef} position={[0, 0, 0]}>
         <mesh geometry={bodyGeo} castShadow receiveShadow>
           <meshPhysicalMaterial ref={bodyMatRef} {...glassMaterial} />
         </mesh>
